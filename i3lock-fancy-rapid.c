@@ -95,8 +95,8 @@ void box_blur(unsigned char *dest, unsigned char *src, int height, int width,
 
 int main(int argc, char *argv[])
 {
-    if (argc != 3) {
-        fprintf(stderr, "usage: %s radius times\n", argv[0]);
+    if (argc < 3) {
+        fprintf(stderr, "usage: %s radius times [OPTIONS]\n", argv[0]);
         exit(EXIT_FAILURE);
     }
     Display *display = XOpenDisplay(NULL);
@@ -144,7 +144,13 @@ int main(int argc, char *argv[])
         remove(filename);
         exit(WEXITSTATUS(status));
     } else {
-        char *new_argv[] = {"i3lock", "-i", filename, NULL};
+        char *new_argv[argc + 1];
+        new_argv[0] = "i3lock";
+        new_argv[1] = "-i";
+        new_argv[2] = filename;
+        for (int i = 3; i < argc; ++i)
+            new_argv[i] = argv[i];
+        new_argv[argc] = NULL;
         execvp(new_argv[0], new_argv);
         exit(EXIT_FAILURE);
     }
