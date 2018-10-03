@@ -30,7 +30,6 @@ The above demo uses `i3lock-fancy-rapid 5 3`.
 ## Dependencies
 
 - [libX11](https://www.x.org/releases/current/doc/libX11/libX11/libX11.html) for screenshot
-- [OpenMP](https://www.openmp.org/) for multithreading
 
 ## License
 
