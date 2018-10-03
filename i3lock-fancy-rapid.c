@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <malloc.h>
-#include <math.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <X11/Xlib.h>
@@ -9,57 +8,95 @@
 #include <omp.h>
 #include "lodepng/lodepng.h"
 
-void gaussian_blur(unsigned char *dest, unsigned char *src, int height,
-                   int width, int radius, double sigma)
+void box_blur_h(unsigned char *dest, unsigned char *src, int height, int width,
+                int radius)
 {
-    int kernel_width = radius * 2 + 1;
-    double kernel[kernel_width * kernel_width];
-    double scale2 = 2.0 * sigma * sigma;
-    double scale1 = 1.0 / (scale2 * M_PI);
-    for (int i = 0; i < kernel_width; ++i) {
-        int dx = i - radius;
-        for (int j = 0; j < kernel_width; ++j) {
-            int dy = j - radius;
-            kernel[kernel_width * i + j] = scale1 * exp(-(dx * dx + dy * dy)
-                                                        / scale2);
-        }
-    }
+    double coeff = 1.0 / (radius * 2 + 1);
 #pragma omp parallel for
     for (int i = 0; i < height; ++i) {
         int iwidth = i * width;
-        for (int j = 0; j < width; ++j) {
-            int index = (iwidth + j) * 3;
-            double r = 0.0;
-            double g = 0.0;
-            double b = 0.0;
-            for (int i_k = 0; i_k < kernel_width; ++i_k) {
-                int x = i + i_k - radius;
-                if (x < 0 || x >= height)
-                    continue;
-                int xwidth = x * width;
-                int i_kkernel_width = i_k * kernel_width;
-                for (int j_k = 0; j_k < kernel_width; ++j_k) {
-                    int y = j + j_k - radius;
-                    if (y < 0 || y >= width)
-                        continue;
-                    int dindex = (xwidth + y) * 3;
-                    int kindex = i_kkernel_width + j_k;
-                    r += src[dindex] * kernel[kindex];
-                    g += src[dindex + 1] * kernel[kindex];
-                    b += src[dindex + 2] * kernel[kindex];
-                }
+        double r_acc = 0.0;
+        double g_acc = 0.0;
+        double b_acc = 0.0;
+        for (int j = -radius; j < width; ++j) {
+            if (j - radius - 1 >= 0) {
+                int index = (iwidth + j - radius - 1) * 3;
+                r_acc -= coeff * src[index];
+                g_acc -= coeff * src[index + 1];
+                b_acc -= coeff * src[index + 2];
             }
-            dest[index] = r + 0.5;
-            dest[index + 1] = g + 0.5;
-            dest[index + 2] = b + 0.5;
+            if (j + radius < width) {
+                int index = (iwidth + j + radius) * 3;
+                r_acc += coeff * src[index];
+                g_acc += coeff * src[index + 1];
+                b_acc += coeff * src[index + 2];
+            }
+            if (j < 0)
+                continue;
+            int index = (iwidth + j) * 3;
+            dest[index] = r_acc + 0.5;
+            dest[index + 1] = g_acc + 0.5;
+            dest[index + 2] = b_acc + 0.5;
         }
     }
+}
+
+void box_blur_v(unsigned char *dest, unsigned char *src, int height, int width,
+                int radius)
+{
+    double coeff = 1.0 / (radius * 2 + 1);
+#pragma omp parallel for
+    for (int j = 0; j < width; ++j) {
+        double r_acc = 0.0;
+        double g_acc = 0.0;
+        double b_acc = 0.0;
+        for (int i = -radius; i < height; ++i) {
+            if (i - radius - 1 >= 0) {
+                int index = ((i - radius - 1) * width + j) * 3;
+                r_acc -= coeff * src[index];
+                g_acc -= coeff * src[index + 1];
+                b_acc -= coeff * src[index + 2];
+            }
+            if (i + radius < height) {
+                int index = ((i + radius) * width + j) * 3;
+                r_acc += coeff * src[index];
+                g_acc += coeff * src[index + 1];
+                b_acc += coeff * src[index + 2];
+            }
+            if (i < 0)
+                continue;
+            int index = (i * width + j) * 3;
+            dest[index] = r_acc + 0.5;
+            dest[index + 1] = g_acc + 0.5;
+            dest[index + 2] = b_acc + 0.5;
+        }
+    }
+}
+
+void box_blur_once(unsigned char *dest, unsigned char *src, int height,
+                   int width, int radius)
+{
+    unsigned char *tmp = malloc(height * width * 3);
+    box_blur_h(tmp, src, height, width, radius);
+    box_blur_v(dest, tmp, height, width, radius);
+    free(tmp);
+}
+
+void box_blur(unsigned char *dest, unsigned char *src, int height, int width,
+              int radius, int times)
+{
+    box_blur_once(dest, src, height, width, radius);
+    for (int i = 0; i < times - 1; ++i) {
+        memcpy(src, dest, height * width * 3);
+        box_blur_once(dest, src, height, width, radius);
+    }
+
 }
 
 int main(int argc, char *argv[])
 {
     if (argc != 3) {
-        fprintf(stderr, "usage: %s radius sigma\n", argv[0]);
+        fprintf(stderr, "usage: %s radius times\n", argv[0]);
         exit(EXIT_FAILURE);
     }
     Display *display = XOpenDisplay(NULL);
@@ -85,8 +122,7 @@ int main(int argc, char *argv[])
     XDestroyWindow(display, root);
     XCloseDisplay(display);
     unsigned char *postblur = malloc(height * width * 3);
-    gaussian_blur(postblur, preblur, height, width, atoi(argv[1]),
-                  atof(argv[2]));
+    box_blur(postblur, preblur, height, width, atoi(argv[1]), atoi(argv[2]));
     free(preblur);
     LodePNGState state;
     lodepng_state_init(&state);
