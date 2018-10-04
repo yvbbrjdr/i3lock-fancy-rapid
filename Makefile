@@ -4,7 +4,7 @@ LDFLAGS=-lX11 -fopenmp
 DEPS=lodepng/lodepng.h
 
 i3lock-fancy-rapid: i3lock-fancy-rapid.o lodepng.o
-	$(CC) $(LDFLAGS) $^ -o $@
+	$(CC) $^ $(LDFLAGS) -o $@
 
 i3lock-fancy-rapid.o: i3lock-fancy-rapid.c $(DEPS)
 	$(CC) $(CFLAGS) $< -o $@
