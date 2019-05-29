@@ -6,7 +6,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <omp.h>
-#include "lodepng/lodepng.h"
+#include <string.h>
 
 void box_blur_h(unsigned char *dest, unsigned char *src, int height, int width,
                 int radius)
@@ -124,33 +124,26 @@ int main(int argc, char *argv[])
     unsigned char *postblur = malloc(height * width * 3);
     box_blur(postblur, preblur, height, width, atoi(argv[1]), atoi(argv[2]));
     free(preblur);
-    LodePNGState state;
-    lodepng_state_init(&state);
-    state.info_raw.colortype = LCT_RGB;
-    state.encoder.zlibsettings.btype = 0;
-    unsigned char *data;
-    size_t data_len;
-    lodepng_encode(&data, &data_len, postblur, width, height, &state);
-    free(postblur);
-    lodepng_state_cleanup(&state);
-    char filename[] = "/tmp/tmp.XXXXXX.png";
-    int fd = mkstemps(filename, 4);
-    write(fd, data, data_len);
-    free(data);
-    close(fd);
+    int fds[2];
+    pipe(fds);
     if (fork()) {
+        write(fds[1], postblur, height * width * 3);
         int status;
         wait(&status);
-        remove(filename);
         exit(WEXITSTATUS(status));
     } else {
-        char *new_argv[argc + 1];
+        dup2(fds[0], STDIN_FILENO);
+        char fmt[32];
+        snprintf(fmt, sizeof(fmt), "%ix%i:rgb", width, height);
+        char *new_argv[argc + 3];
         new_argv[0] = "i3lock";
         new_argv[1] = "-i";
-        new_argv[2] = filename;
+        new_argv[2] = "/dev/stdin";
+        new_argv[3] = "--raw";
+        new_argv[4] = fmt;
         for (int i = 3; i < argc; ++i)
-            new_argv[i] = argv[i];
-        new_argv[argc] = NULL;
+            new_argv[i + 2] = argv[i];
+        new_argv[argc + 2] = NULL;
         execvp(new_argv[0], new_argv);
         exit(EXIT_FAILURE);
     }
