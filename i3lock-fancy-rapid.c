@@ -93,12 +93,66 @@ void box_blur(unsigned char *dest, unsigned char *src, int height, int width,
 
 }
 
+void pixelate(unsigned char *dest, unsigned char *src, int height,
+                   int width, int radius)
+{
+    radius = radius * 2 + 1;
+#pragma omp parallel for
+    for (int i = 0; i < height; i += radius) {
+        for (int j = 0; j < width; j += radius) {
+            int amount = 0;
+            int r = 0;
+            int g = 0;
+            int b = 0;
+
+            for (int k = 0; k < radius; ++k) {
+                if (i + k >= height)
+                    break;
+
+                for (int l = 0; l < radius; ++l) {
+                    if (j + l >= width)
+                        break;
+
+                    ++amount;
+                    int index = ((i + k) * width + (j + l)) * 3;
+                    r += src[index];
+                    g += src[index + 1];
+                    b += src[index + 2];
+                }
+            }
+
+            r /= amount;
+            g /= amount;
+            b /= amount;
+
+            for (int k = 0; k < radius; ++k) {
+                if (i + k >= height)
+                    break;
+
+                for (int l = 0; l < radius; ++l) {
+                    if (j + l >= width)
+                        break;
+
+                    int index = ((i + k) * width + (j + l)) * 3;
+                    dest[index] = r;
+                    dest[index + 1] = g;
+                    dest[index + 2] = b;
+                }
+            }
+        }
+    }
+}
+
 int main(int argc, char *argv[])
 {
     if (argc < 3) {
-        fprintf(stderr, "usage: %s radius times [OPTIONS]\n", argv[0]);
+        fprintf(stderr,
+               "usage: %s radius times [OPTIONS]\n"
+               "pass \"pixel\" for times to get pixelation\n",
+               argv[0]);
         exit(EXIT_FAILURE);
     }
+
     Display *display = XOpenDisplay(NULL);
     Window root = XDefaultRootWindow(display);
     XWindowAttributes gwa;
@@ -121,9 +175,15 @@ int main(int argc, char *argv[])
     XDestroyImage(image);
     XDestroyWindow(display, root);
     XCloseDisplay(display);
+
     unsigned char *postblur = malloc(height * width * 3);
-    box_blur(postblur, preblur, height, width, atoi(argv[1]), atoi(argv[2]));
+    if (strcmp(argv[2], "pixel") == 0) {
+        pixelate(postblur, preblur, height, width, atoi(argv[1]));
+    } else {
+        box_blur(postblur, preblur, height, width, atoi(argv[1]), atoi(argv[2]));
+    }
     free(preblur);
+
     int fds[2];
     pipe(fds);
     if (fork()) {
