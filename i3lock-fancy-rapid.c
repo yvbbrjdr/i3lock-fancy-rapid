@@ -96,9 +96,9 @@ void box_blur(unsigned char *dest, unsigned char *src, int height, int width,
 void pixelate(unsigned char *dest, unsigned char *src, int height,
                    int width, int radius)
 {
+    radius = radius * 2 + 1;
 #pragma omp parallel for
     for (int i = 0; i < height; i += radius) {
-#pragma omp parallel for
         for (int j = 0; j < width; j += radius) {
             int amount = 0;
             int r = 0;
@@ -124,7 +124,6 @@ void pixelate(unsigned char *dest, unsigned char *src, int height,
             r /= amount;
             g /= amount;
             b /= amount;
-
 
             for (int k = 0; k < radius; ++k) {
                 if (i + k >= height)
