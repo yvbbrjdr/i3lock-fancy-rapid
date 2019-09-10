@@ -29,7 +29,7 @@ The above demo uses `i3lock-fancy-rapid 5 3`.
 
 ## Dependencies
 
-- [libX11](https://www.x.org/releases/current/doc/libX11/libX11/libX11.html) for screenshot
+- [libX11](https://www.x.org/releases/current/doc/libX11/libX11/libX11.html) for screenshot (debian: libx11-dev )
 - [i3lock](https://github.com/i3/i3lock) >= 2.12 for locking
 
 ## License
