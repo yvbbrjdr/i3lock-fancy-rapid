@@ -10,7 +10,7 @@ A faster implementation of [i3lock-fancy](https://github.com/meskarune/i3lock-fa
 
 Make sure you have installed the following dependencies and run
 ```bash
-git clone --recursive https://github.com/yvbbrjdr/i3lock-fancy-rapid
+git clone https://github.com/yvbbrjdr/i3lock-fancy-rapid
 cd i3lock-fancy-rapid
 make
 ```
@@ -22,7 +22,7 @@ i3lock-fancy-rapid radius times [OPTIONS]
 ```
 
 - `radius` is the kernel radius of box blur
-- `times` is the number of times box blur is applied
+- `times` is the number of times box blur is applied (`pixel` for pixelation)
 - `OPTIONS` will be passed to `i3lock`
 
 The above demo uses `i3lock-fancy-rapid 5 3`.
