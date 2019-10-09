@@ -209,10 +209,20 @@ int main(int argc, char *argv[])
     XCloseDisplay(display);
 
     unsigned char *postblur = malloc(height * width * 3);
+    int radius = atoi(argv[1]);
+    if (radius < 0) {
+        fprintf(stderr, "Radius has to be non-negative!\n");
+        exit(EXIT_FAILURE);
+    }
     if (strcmp(argv[2], "pixel") == 0) {
-        pixelate(postblur, preblur, height, width, atoi(argv[1]));
+        pixelate(postblur, preblur, height, width, radius);
     } else {
-        box_blur(postblur, preblur, height, width, atoi(argv[1]), atoi(argv[2]));
+        int times = atoi(argv[2]);
+        if (times < 0) {
+            fprintf(stderr, "Times has to be non-negative!\n");
+            exit(EXIT_FAILURE);
+        }
+        box_blur(postblur, preblur, height, width, radius, times);
     }
     free(preblur);
 
