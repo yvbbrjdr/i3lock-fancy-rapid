@@ -1,8 +1,16 @@
 CC=gcc
 CFLAGS=-O3 -fopenmp -Wall -Wextra -lX11
+PROG=i3lock-fancy-rapid
+BINDIR=/usr/bin
 
-i3lock-fancy-rapid: i3lock-fancy-rapid.c
+all: $(PROG) install
+
+$(PROG): $(PROG).c
 	$(CC) $^ $(CFLAGS) -o $@
 
+install:
+	@install -Dm755 $(PROG) -t $(BINDIR)
+
 clean:
-	rm -f i3lock-fancy-rapid
+	rm -f $(PROG)
+	rm -f /$(BINDIR)/$(PROG)
