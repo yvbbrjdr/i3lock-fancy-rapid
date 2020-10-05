@@ -73,56 +73,32 @@ void box_blur_h(unsigned char *dest, unsigned char *src, int height, int width,
     }
 }
 
-void box_blur_v(unsigned char *dest, unsigned char *src, int height, int width,
-                int radius)
-{
-    double coeff = 1.0 / (radius * 2 + 1);
-#pragma omp parallel for
-    for (int j = 0; j < width; ++j) {
-        double r_acc = 0.0;
-        double g_acc = 0.0;
-        double b_acc = 0.0;
-        for (int i = -radius; i < height; ++i) {
-            if (i - radius - 1 >= 0) {
-                int index = ((i - radius - 1) * width + j) * 3;
-                r_acc -= coeff * src[index];
-                g_acc -= coeff * src[index + 1];
-                b_acc -= coeff * src[index + 2];
-            }
-            if (i + radius < height) {
-                int index = ((i + radius) * width + j) * 3;
-                r_acc += coeff * src[index];
-                g_acc += coeff * src[index + 1];
-                b_acc += coeff * src[index + 2];
-            }
-            if (i < 0)
-                continue;
-            int index = (i * width + j) * 3;
-            dest[index] = r_acc + 0.5;
-            dest[index + 1] = g_acc + 0.5;
-            dest[index + 2] = b_acc + 0.5;
+static inline void transpose(unsigned char *dest, unsigned char *src, int height, int width) {
+    for (int i = 0; i < height; ++i) {
+        int iwidth = i * width;
+        for (int j = 0; j < width; ++j) {
+            int nIndex = 3 * (iwidth + j);
+            int tIndex = 3 * (j * height + i);
+            dest[tIndex] = src[nIndex];
+            dest[tIndex+1] = src[nIndex+1];
+            dest[tIndex+2] = src[nIndex+2];
         }
     }
-}
-
-void box_blur_once(unsigned char *dest, unsigned char *src, int height,
-                   int width, int radius)
-{
-    unsigned char *tmp = malloc(height * width * 3);
-    box_blur_h(tmp, src, height, width, radius);
-    box_blur_v(dest, tmp, height, width, radius);
-    free(tmp);
 }
 
 void box_blur(unsigned char *dest, unsigned char *src, int height, int width,
               int radius, int times)
 {
-    box_blur_once(dest, src, height, width, radius);
-    for (int i = 0; i < times - 1; ++i) {
+    for (int i = 0; i < times; ++i) {
+        box_blur_h(dest, src, height, width, radius);
         memcpy(src, dest, height * width * 3);
-        box_blur_once(dest, src, height, width, radius);
     }
-
+    transpose(src, dest, height, width);
+    for (int i = 0; i < times; ++i) {
+        box_blur_h(dest, src, width, height, radius);
+        memcpy(src, dest, height * width * 3);
+    }
+    transpose(dest, src, width, height);
 }
 
 void pixelate(unsigned char *dest, unsigned char *src, int height,
