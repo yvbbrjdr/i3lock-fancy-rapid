@@ -17,6 +17,10 @@ make
 
 ## Usage
 
+**Make sure `i3lock-color` has been installed in `PATH` dir. `i3lock-color` create the executable file named `i3lock` which is same with `i3lock` (https://github.com/i3/i3lock) project.**
+
+**So make sure `i3lock-color` is running instead of `i3lock`.**
+
 ```bash
 i3lock-fancy-rapid radius times [OPTIONS]
 ```
@@ -30,7 +34,7 @@ The above demo uses `i3lock-fancy-rapid 5 3`.
 ## Dependencies
 
 - [libX11](https://www.x.org/releases/current/doc/libX11/libX11/libX11.html) for screenshot
-- [i3lock](https://github.com/i3/i3lock) >= 2.12 for locking
+- [i3lock-color](https://github.com/Raymo111/i3lock-color) master for locking with enhance color config.
 
 ## License
 
