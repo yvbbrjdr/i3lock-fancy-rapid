@@ -32,7 +32,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <malloc.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <X11/Xlib.h>
@@ -41,8 +40,7 @@
 #include <string.h>
 
 void box_blur_h(unsigned char *dest, unsigned char *src, int height, int width,
-                int radius)
-{
+                int radius) {
     double coeff = 1.0 / (radius * 2 + 1);
 #pragma omp parallel for
     for (int i = 0; i < height; ++i) {
@@ -80,15 +78,14 @@ static inline void transpose(unsigned char *dest, unsigned char *src, int height
             int nIndex = 3 * (iwidth + j);
             int tIndex = 3 * (j * height + i);
             dest[tIndex] = src[nIndex];
-            dest[tIndex+1] = src[nIndex+1];
-            dest[tIndex+2] = src[nIndex+2];
+            dest[tIndex + 1] = src[nIndex + 1];
+            dest[tIndex + 2] = src[nIndex + 2];
         }
     }
 }
 
 void box_blur(unsigned char *dest, unsigned char *src, int height, int width,
-              int radius, int times)
-{
+              int radius, int times) {
     for (int i = 0; i < times; ++i) {
         box_blur_h(dest, src, height, width, radius);
         memcpy(src, dest, height * width * 3);
@@ -102,8 +99,7 @@ void box_blur(unsigned char *dest, unsigned char *src, int height, int width,
 }
 
 void pixelate(unsigned char *dest, unsigned char *src, int height,
-                   int width, int radius)
-{
+              int width, int radius) {
     radius = radius * 2 + 1;
 #pragma omp parallel for
     for (int i = 0; i < height; i += radius) {
@@ -151,13 +147,12 @@ void pixelate(unsigned char *dest, unsigned char *src, int height,
     }
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     if (argc < 3) {
         fprintf(stderr,
-               "usage: %s radius times [OPTIONS]\n"
-               "pass \"pixel\" for times to get pixelation\n",
-               argv[0]);
+                "usage: %s radius times [OPTIONS]\n"
+                "pass \"pixel\" for times to get pixelation\n",
+                argv[0]);
         exit(EXIT_FAILURE);
     }
 
