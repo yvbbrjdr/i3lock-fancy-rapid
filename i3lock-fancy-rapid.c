@@ -39,113 +39,9 @@
 #include <omp.h>
 #include <string.h>
 
-void box_blur_h(unsigned char *dest, unsigned char *src, int height, int width,
-                int radius) {
-    double coeff = 1.0 / (radius * 2 + 1);
-#pragma omp parallel for
-    for (int i = 0; i < height; ++i) {
-        int iwidth = i * width;
-        double r_acc = 0.0;
-        double g_acc = 0.0;
-        double b_acc = 0.0;
-        for (int j = -radius; j < width; ++j) {
-            if (j - radius - 1 >= 0) {
-                int index = (iwidth + j - radius - 1) * 3;
-                r_acc -= coeff * src[index];
-                g_acc -= coeff * src[index + 1];
-                b_acc -= coeff * src[index + 2];
-            }
-            if (j + radius < width) {
-                int index = (iwidth + j + radius) * 3;
-                r_acc += coeff * src[index];
-                g_acc += coeff * src[index + 1];
-                b_acc += coeff * src[index + 2];
-            }
-            if (j < 0)
-                continue;
-            int index = (iwidth + j) * 3;
-            dest[index] = r_acc + 0.5;
-            dest[index + 1] = g_acc + 0.5;
-            dest[index + 2] = b_acc + 0.5;
-        }
-    }
-}
+#include "i3lock-fancy-rapid.h"
 
-static inline void transpose(unsigned char *dest, unsigned char *src, int height, int width) {
-    for (int i = 0; i < height; ++i) {
-        int iwidth = i * width;
-        for (int j = 0; j < width; ++j) {
-            int nIndex = 3 * (iwidth + j);
-            int tIndex = 3 * (j * height + i);
-            dest[tIndex] = src[nIndex];
-            dest[tIndex + 1] = src[nIndex + 1];
-            dest[tIndex + 2] = src[nIndex + 2];
-        }
-    }
-}
-
-void box_blur(unsigned char *dest, unsigned char *src, int height, int width,
-              int radius, int times) {
-    for (int i = 0; i < times; ++i) {
-        box_blur_h(dest, src, height, width, radius);
-        memcpy(src, dest, height * width * 3);
-    }
-    transpose(src, dest, height, width);
-    for (int i = 0; i < times; ++i) {
-        box_blur_h(dest, src, width, height, radius);
-        memcpy(src, dest, height * width * 3);
-    }
-    transpose(dest, src, width, height);
-}
-
-void pixelate(unsigned char *dest, unsigned char *src, int height,
-              int width, int radius) {
-    radius = radius * 2 + 1;
-#pragma omp parallel for
-    for (int i = 0; i < height; i += radius) {
-        for (int j = 0; j < width; j += radius) {
-            int amount = 0;
-            int r = 0;
-            int g = 0;
-            int b = 0;
-
-            for (int k = 0; k < radius; ++k) {
-                if (i + k >= height)
-                    break;
-
-                for (int l = 0; l < radius; ++l) {
-                    if (j + l >= width)
-                        break;
-
-                    ++amount;
-                    int index = ((i + k) * width + (j + l)) * 3;
-                    r += src[index];
-                    g += src[index + 1];
-                    b += src[index + 2];
-                }
-            }
-
-            r /= amount;
-            g /= amount;
-            b /= amount;
-
-            for (int k = 0; k < radius; ++k) {
-                if (i + k >= height)
-                    break;
-
-                for (int l = 0; l < radius; ++l) {
-                    if (j + l >= width)
-                        break;
-
-                    int index = ((i + k) * width + (j + l)) * 3;
-                    dest[index] = r;
-                    dest[index + 1] = g;
-                    dest[index + 2] = b;
-                }
-            }
-        }
-    }
-}
+static inline void transpose(unsigned char *dest, unsigned char *src, int height, int width);
 
 int main(int argc, char *argv[]) {
     if (argc < 3) {
@@ -219,5 +115,110 @@ int main(int argc, char *argv[]) {
         new_argv[argc + 2] = NULL;
         execvp(new_argv[0], new_argv);
         exit(EXIT_FAILURE);
+    }
+}
+
+void box_blur_h(unsigned char *dest, unsigned char *src, int height, int width, int radius) {
+    double coeff = 1.0 / (radius * 2 + 1);
+#pragma omp parallel for
+    for (int i = 0; i < height; ++i) {
+        int iwidth = i * width;
+        double r_acc = 0.0;
+        double g_acc = 0.0;
+        double b_acc = 0.0;
+        for (int j = -radius; j < width; ++j) {
+            if (j - radius - 1 >= 0) {
+                int index = (iwidth + j - radius - 1) * 3;
+                r_acc -= coeff * src[index];
+                g_acc -= coeff * src[index + 1];
+                b_acc -= coeff * src[index + 2];
+            }
+            if (j + radius < width) {
+                int index = (iwidth + j + radius) * 3;
+                r_acc += coeff * src[index];
+                g_acc += coeff * src[index + 1];
+                b_acc += coeff * src[index + 2];
+            }
+            if (j < 0)
+                continue;
+            int index = (iwidth + j) * 3;
+            dest[index] = r_acc + 0.5;
+            dest[index + 1] = g_acc + 0.5;
+            dest[index + 2] = b_acc + 0.5;
+        }
+    }
+}
+
+static inline void transpose(unsigned char *dest, unsigned char *src, int height, int width) {
+    for (int i = 0; i < height; ++i) {
+        int iwidth = i * width;
+        for (int j = 0; j < width; ++j) {
+            int nIndex = 3 * (iwidth + j);
+            int tIndex = 3 * (j * height + i);
+            dest[tIndex] = src[nIndex];
+            dest[tIndex + 1] = src[nIndex + 1];
+            dest[tIndex + 2] = src[nIndex + 2];
+        }
+    }
+}
+
+void box_blur(unsigned char *dest, unsigned char *src, int height, int width, int radius, int times) {
+    for (int i = 0; i < times; ++i) {
+        box_blur_h(dest, src, height, width, radius);
+        memcpy(src, dest, height * width * 3);
+    }
+    transpose(src, dest, height, width);
+    for (int i = 0; i < times; ++i) {
+        box_blur_h(dest, src, width, height, radius);
+        memcpy(src, dest, height * width * 3);
+    }
+    transpose(dest, src, width, height);
+}
+
+void pixelate(unsigned char *dest, unsigned char *src, int height, int width, int radius) {
+    radius = radius * 2 + 1;
+#pragma omp parallel for
+    for (int i = 0; i < height; i += radius) {
+        for (int j = 0; j < width; j += radius) {
+            int amount = 0;
+            int r = 0;
+            int g = 0;
+            int b = 0;
+
+            for (int k = 0; k < radius; ++k) {
+                if (i + k >= height)
+                    break;
+
+                for (int l = 0; l < radius; ++l) {
+                    if (j + l >= width)
+                        break;
+
+                    ++amount;
+                    int index = ((i + k) * width + (j + l)) * 3;
+                    r += src[index];
+                    g += src[index + 1];
+                    b += src[index + 2];
+                }
+            }
+
+            r /= amount;
+            g /= amount;
+            b /= amount;
+
+            for (int k = 0; k < radius; ++k) {
+                if (i + k >= height)
+                    break;
+
+                for (int l = 0; l < radius; ++l) {
+                    if (j + l >= width)
+                        break;
+
+                    int index = ((i + k) * width + (j + l)) * 3;
+                    dest[index] = r;
+                    dest[index + 1] = g;
+                    dest[index + 2] = b;
+                }
+            }
+        }
     }
 }
