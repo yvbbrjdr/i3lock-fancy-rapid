@@ -52,6 +52,18 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    int radius = atoi(argv[1]);
+    if (radius < 0) {
+        fprintf(stderr, "Radius has to be non-negative!\n");
+        exit(EXIT_FAILURE);
+    }
+
+    int times = atoi(argv[2]);
+    if (times < 0) {
+        fprintf(stderr, "Times has to be non-negative!\n");
+        exit(EXIT_FAILURE);
+    }
+
     Display *display = XOpenDisplay(NULL);
     Window root = XDefaultRootWindow(display);
     XWindowAttributes gwa;
@@ -59,8 +71,7 @@ int main(int argc, char *argv[]) {
     int height = gwa.height;
     int width = gwa.width;
     unsigned char *preblur = malloc(height * width * 3);
-    XImage *image = XGetImage(display, root, 0, 0, width, height, AllPlanes,
-                              ZPixmap);
+    XImage *image = XGetImage(display, root, 0, 0, width, height, AllPlanes, ZPixmap);
     for (int i = 0; i < height; ++i) {
         int iwidth = i * width;
         for (int j = 0; j < width; ++j) {
@@ -76,19 +87,9 @@ int main(int argc, char *argv[]) {
     XCloseDisplay(display);
 
     unsigned char *postblur = malloc(height * width * 3);
-    int radius = atoi(argv[1]);
-    if (radius < 0) {
-        fprintf(stderr, "Radius has to be non-negative!\n");
-        exit(EXIT_FAILURE);
-    }
     if (strcmp(argv[2], "pixel") == 0) {
         pixelate(postblur, preblur, height, width, radius);
     } else {
-        int times = atoi(argv[2]);
-        if (times < 0) {
-            fprintf(stderr, "Times has to be non-negative!\n");
-            exit(EXIT_FAILURE);
-        }
         box_blur(postblur, preblur, height, width, radius, times);
     }
     free(preblur);
