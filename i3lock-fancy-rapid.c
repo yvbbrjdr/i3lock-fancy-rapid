@@ -32,7 +32,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <malloc.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <X11/Xlib.h>
@@ -40,9 +39,87 @@
 #include <omp.h>
 #include <string.h>
 
-void box_blur_h(unsigned char *dest, unsigned char *src, int height, int width,
-                int radius)
-{
+#include "i3lock-fancy-rapid.h"
+
+static inline void transpose(unsigned char *dest, unsigned char *src, int height, int width);
+
+int main(int argc, char *argv[]) {
+    if (argc < 3) {
+        fprintf(stderr,
+                "usage: %s radius times [OPTIONS]\n"
+                "pass \"pixel\" for times to get pixelation\n",
+                argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
+    int radius = atoi(argv[1]);
+    if (radius < 0) {
+        fprintf(stderr, "Radius has to be non-negative!\n");
+        exit(EXIT_FAILURE);
+    }
+
+    int times = atoi(argv[2]);
+    if (times < 0) {
+        fprintf(stderr, "Times has to be non-negative!\n");
+        exit(EXIT_FAILURE);
+    }
+
+    Display *display = XOpenDisplay(NULL);
+    Window root = XDefaultRootWindow(display);
+    XWindowAttributes gwa;
+    XGetWindowAttributes(display, root, &gwa);
+    int height = gwa.height;
+    int width = gwa.width;
+    unsigned char *preblur = malloc(height * width * 3);
+    XImage *image = XGetImage(display, root, 0, 0, width, height, AllPlanes, ZPixmap);
+    for (int i = 0; i < height; ++i) {
+        int iwidth = i * width;
+        for (int j = 0; j < width; ++j) {
+            int index = (iwidth + j) * 3;
+            unsigned long pixel = XGetPixel(image, j, i);
+            preblur[index] = (pixel & image->red_mask) >> 16;
+            preblur[index + 1] = (pixel & image->green_mask) >> 8;
+            preblur[index + 2] = pixel & image->blue_mask;
+        }
+    }
+    XDestroyImage(image);
+    XDestroyWindow(display, root);
+    XCloseDisplay(display);
+
+    unsigned char *postblur = malloc(height * width * 3);
+    if (strcmp(argv[2], "pixel") == 0) {
+        pixelate(postblur, preblur, height, width, radius);
+    } else {
+        box_blur(postblur, preblur, height, width, radius, times);
+    }
+    free(preblur);
+
+    int fds[2];
+    pipe(fds);
+    if (fork()) {
+        write(fds[1], postblur, height * width * 3);
+        int status;
+        wait(&status);
+        exit(WEXITSTATUS(status));
+    } else {
+        dup2(fds[0], STDIN_FILENO);
+        char fmt[32];
+        snprintf(fmt, sizeof(fmt), "%ix%i:rgb", width, height);
+        char *new_argv[argc + 3];
+        new_argv[0] = "i3lock";
+        new_argv[1] = "-i";
+        new_argv[2] = "/dev/stdin";
+        new_argv[3] = "--raw";
+        new_argv[4] = fmt;
+        for (int i = 3; i < argc; ++i)
+            new_argv[i + 2] = argv[i];
+        new_argv[argc + 2] = NULL;
+        execvp(new_argv[0], new_argv);
+        exit(EXIT_FAILURE);
+    }
+}
+
+void box_blur_h(unsigned char *dest, unsigned char *src, int height, int width, int radius) {
     double coeff = 1.0 / (radius * 2 + 1);
 #pragma omp parallel for
     for (int i = 0; i < height; ++i) {
@@ -80,15 +157,13 @@ static inline void transpose(unsigned char *dest, unsigned char *src, int height
             int nIndex = 3 * (iwidth + j);
             int tIndex = 3 * (j * height + i);
             dest[tIndex] = src[nIndex];
-            dest[tIndex+1] = src[nIndex+1];
-            dest[tIndex+2] = src[nIndex+2];
+            dest[tIndex + 1] = src[nIndex + 1];
+            dest[tIndex + 2] = src[nIndex + 2];
         }
     }
 }
 
-void box_blur(unsigned char *dest, unsigned char *src, int height, int width,
-              int radius, int times)
-{
+void box_blur(unsigned char *dest, unsigned char *src, int height, int width, int radius, int times) {
     for (int i = 0; i < times; ++i) {
         box_blur_h(dest, src, height, width, radius);
         memcpy(src, dest, height * width * 3);
@@ -101,9 +176,7 @@ void box_blur(unsigned char *dest, unsigned char *src, int height, int width,
     transpose(dest, src, width, height);
 }
 
-void pixelate(unsigned char *dest, unsigned char *src, int height,
-                   int width, int radius)
-{
+void pixelate(unsigned char *dest, unsigned char *src, int height, int width, int radius) {
     radius = radius * 2 + 1;
 #pragma omp parallel for
     for (int i = 0; i < height; i += radius) {
@@ -148,81 +221,5 @@ void pixelate(unsigned char *dest, unsigned char *src, int height,
                 }
             }
         }
-    }
-}
-
-int main(int argc, char *argv[])
-{
-    if (argc < 3) {
-        fprintf(stderr,
-               "usage: %s radius times [OPTIONS]\n"
-               "pass \"pixel\" for times to get pixelation\n",
-               argv[0]);
-        exit(EXIT_FAILURE);
-    }
-
-    Display *display = XOpenDisplay(NULL);
-    Window root = XDefaultRootWindow(display);
-    XWindowAttributes gwa;
-    XGetWindowAttributes(display, root, &gwa);
-    int height = gwa.height;
-    int width = gwa.width;
-    unsigned char *preblur = malloc(height * width * 3);
-    XImage *image = XGetImage(display, root, 0, 0, width, height, AllPlanes,
-                              ZPixmap);
-    for (int i = 0; i < height; ++i) {
-        int iwidth = i * width;
-        for (int j = 0; j < width; ++j) {
-            int index = (iwidth + j) * 3;
-            unsigned long pixel = XGetPixel(image, j, i);
-            preblur[index] = (pixel & image->red_mask) >> 16;
-            preblur[index + 1] = (pixel & image->green_mask) >> 8;
-            preblur[index + 2] = pixel & image->blue_mask;
-        }
-    }
-    XDestroyImage(image);
-    XDestroyWindow(display, root);
-    XCloseDisplay(display);
-
-    unsigned char *postblur = malloc(height * width * 3);
-    int radius = atoi(argv[1]);
-    if (radius < 0) {
-        fprintf(stderr, "Radius has to be non-negative!\n");
-        exit(EXIT_FAILURE);
-    }
-    if (strcmp(argv[2], "pixel") == 0) {
-        pixelate(postblur, preblur, height, width, radius);
-    } else {
-        int times = atoi(argv[2]);
-        if (times < 0) {
-            fprintf(stderr, "Times has to be non-negative!\n");
-            exit(EXIT_FAILURE);
-        }
-        box_blur(postblur, preblur, height, width, radius, times);
-    }
-    free(preblur);
-
-    int fds[2];
-    pipe(fds);
-    if (fork()) {
-        write(fds[1], postblur, height * width * 3);
-        int status;
-        wait(&status);
-        exit(WEXITSTATUS(status));
-    } else {
-        dup2(fds[0], STDIN_FILENO);
-        char fmt[32];
-        snprintf(fmt, sizeof(fmt), "%ix%i:rgb", width, height);
-        char *new_argv[argc + 3];
-        new_argv[0] = "i3lock";
-        new_argv[1] = "-i";
-        new_argv[2] = "/dev/stdin";
-        new_argv[3] = "--raw";
-        new_argv[4] = fmt;
-        for (int i = 3; i < argc; ++i)
-            new_argv[i + 2] = argv[i];
-        new_argv[argc + 2] = NULL;
-        execvp(new_argv[0], new_argv);
-        exit(EXIT_FAILURE);
     }
 }
